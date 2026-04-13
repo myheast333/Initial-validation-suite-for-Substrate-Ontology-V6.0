@@ -1,0 +1,4 @@
+git clone https://github.com/myheart333/Initial-validation-suite-for-Substrate-Ontology-V6.0.git
+cd Initial-validation-suite-for-Substrate-Ontology-V6.0
+pip install -r requirements.txt
+python cmb_simulation.py
