@@ -32,3 +32,13 @@ pip install -r requirements.txt
 python simulations/cmb_spectrum_corrected.py
 python simulations/quark_confinement_calibrated.py
 python simulations/olbers_cmb_unified.py
+
+Scientific Standards
+All parameters experimentally calibrated (no arbitrary values)
+Uncertainty bands included where applicable
+Clear falsification criteria for each prediction
+Observational challenges explicitly acknowledged
+LaTeX formula annotations for theoretical clarity
+Citation
+If you use this validation suite in your research, please cite:
+[To be determined upon publication]
