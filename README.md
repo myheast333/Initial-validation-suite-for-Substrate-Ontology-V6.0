@@ -29,9 +29,9 @@ cd Initial-validation-suite-for-Substrate-Ontology-V6.0
 pip install -r requirements.txt
 
 # Run individual validations
-python simulations/cmb_spectrum_corrected.py
-python simulations/quark_confinement_calibrated.py
-python simulations/olbers_cmb_unified.py
+python cmb_spectrum_corrected.py
+python quark_confinement_calibrated.py
+python olbers_cmb_unified.py
 
 Scientific Standards
 All parameters experimentally calibrated (no arbitrary values)
