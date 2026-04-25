@@ -15,10 +15,13 @@ OPTIMIZATIONS (2026-04-25):
 - Added LaTeX formula annotation for theoretical clarity
 - Added FARSIDE 2029 projected sensitivity curve
 - Improved figure annotations and scientific context
+- FIXED: Numerical stability issue with division by near-zero values
+- OPTIMIZED: Professional journal-quality layout (PRD/ApJ standard)
 """
 
 import numpy as np
 import matplotlib.pyplot as plt
+import matplotlib.gridspec as gridspec
 import os
 
 # Physical constants (CODATA 2018)
@@ -34,6 +37,9 @@ ALPHA = 0.876          # Calibrated exponent for 38 dB at 1 MHz
 
 # FARSIDE 2029 projected sensitivity (hypothetical)
 FARSIDE_SENSITIVITY_DB = 5.0  # dB detection threshold
+
+# Numerical stability threshold
+MIN_SPECTRUM_VALUE = 1e-50  # Avoid division by extremely small values
 
 def planck_spectrum(nu, T):
     """
@@ -90,6 +96,26 @@ def plot_with_uncertainty(ax, nu, base_spectrum, label_base, color_base):
                     label=f'{label_base} ±1.5 MHz uncertainty')
     ax.loglog(nu, base_spectrum, color_base, linewidth=2.5, label=label_base)
 
+def safe_db_ratio(planck, v6):
+    """
+    Safely compute dB ratio avoiding division by zero or extremely small values.
+    Returns ratio in dB with NaN/Inf values filtered out.
+    """
+    # Avoid division by extremely small values
+    v6_safe = np.maximum(v6, MIN_SPECTRUM_VALUE)
+    
+    # Compute ratio
+    ratio = planck / v6_safe
+    
+    # Convert to dB
+    ratio_db = 10 * np.log10(ratio)
+    
+    # Filter out extreme values that are not physically meaningful
+    # (values > 1000 dB are essentially infinite for practical purposes)
+    ratio_db = np.clip(ratio_db, -100, 1000)
+    
+    return ratio_db
+
 def main():
     print("=" * 70)
     print("CMB LOW-FREQUENCY CUTOFF SIMULATION (OPTIMIZED)")
@@ -119,86 +145,111 @@ def main():
     print(f"\n   ✓ Calibration check: {deviation_db:.1f} dB at 1 MHz (target: 38.0 dB)")
     print("-" * 60)
     
-    # Create figure
-    fig, ax = plt.subplots(1, 2, figsize=(14, 5.5))
+    # ===== CREATE FIGURE WITH OPTIMIZED LAYOUT =====
+    fig = plt.figure(figsize=(15, 5.8))
+    gs = gridspec.GridSpec(1, 2, width_ratios=[45, 55], wspace=0.3)
     
-    # ===== LEFT PANEL: Full spectrum with uncertainty bands =====
-    plot_with_uncertainty(ax[0], nu, planck, 'Planck (Standard)', 'b')
-    plot_with_uncertainty(ax[0], nu, v6, 'V6.0 Prediction', 'orange')
+    ax0 = plt.subplot(gs[0])
+    ax1 = plt.subplot(gs[1])
     
-    ax[0].axvline(x=NU_CUTOFF, color='purple', linestyle='--', linewidth=1.5,
-                  label=f'ν_cutoff = {NU_CUTOFF/1e6:.1f} ± {NU_CUTOFF_ERR/1e6:.1f} MHz')
-    ax[0].set_xlabel('Frequency ν (Hz)', fontsize=11, fontweight='bold')
-    ax[0].set_ylabel('Spectral Radiance (W·m⁻²·sr⁻¹·Hz⁻¹)', fontsize=10)
-    ax[0].set_title('CMB Spectrum: Planck vs V6.0 (with Uncertainty Bands)', 
-                    fontsize=12, fontweight='bold')
-    ax[0].legend(fontsize=9, loc='lower right')
-    ax[0].grid(True, which="both", alpha=0.3)
+    # ===== LEFT PANEL: CMB Spectrum (Optimized) =====
+    plot_with_uncertainty(ax0, nu, planck, 'Planck (Standard)', 'b')
+    plot_with_uncertainty(ax0, nu, v6, 'V6.0 Prediction', 'orange')
     
-    # Add theoretical formula annotation
+    ax0.axvline(x=NU_CUTOFF, color='purple', linestyle='--', linewidth=1.5,
+                label=r'$\nu_{\rm cutoff} = 10.2 \pm 1.5\,$MHz')
+    ax0.set_xlabel(r'Frequency $\nu$ (Hz)', fontsize=13, fontweight='bold')
+    ax0.set_ylabel(r'Spectral Radiance $I_\nu$ (W·m⁻²·sr⁻¹·Hz⁻¹)', 
+                   fontsize=12, fontweight='bold')
+    ax0.set_title('CMB Spectrum: Planck vs V6.0 (with Uncertainty Bands)', 
+                  fontsize=14, fontweight='bold', pad=12)
+    ax0.grid(True, which="both", alpha=0.3, linestyle=':', linewidth=0.7)
+    
+    # Formula annotation — cleaner placement
     formula_text = (
-        r"V6.0 Prediction: $I_\nu^{\mathrm{V6}} = I_\nu^{\mathrm{Planck}} \cdot "
-        r"\exp\left[-\alpha \frac{\nu_c}{\nu}\right]$"
+        r"$I_\nu^{\rm V6} = I_\nu^{\rm Planck} \cdot "
+        r"\exp\!\left[-\alpha \frac{\nu_c}{\nu}\right]$, "
+        r"$\alpha=0.876$, $\nu_c=10.2\,$MHz"
     )
-    ax[0].text(0.02, 0.98, formula_text, transform=ax[0].transAxes,
-               fontsize=9, ha='left', va='top',
-               bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.3))
+    ax0.text(0.02, 0.97, formula_text, transform=ax0.transAxes,
+             fontsize=10, ha='left', va='top',
+             bbox=dict(boxstyle='round,pad=0.4', facecolor='white', edgecolor='gray', alpha=0.95),
+             zorder=10)
     
-    # ===== RIGHT PANEL: Deviation in dB with foreground warning =====
-    ratio_db = 10 * np.log10(planck / v6)
-    ax[1].semilogx(nu, ratio_db, 'r-', linewidth=2.5, label='V6.0 Deviation')
+    # ===== RIGHT PANEL: Deviation with Context (Optimized) =====
+    ratio_db = safe_db_ratio(planck, v6)
+    ax1.semilogx(nu, ratio_db, 'r-', linewidth=2.2, label='V6.0 Deviation')
     
-    # Highlight key regions
-    ax[1].axhline(y=0, color='gray', linestyle='--', alpha=0.6)
-    ax[1].axvline(x=NU_CUTOFF, color='purple', linestyle='--', alpha=0.7,
-                  label=f'Cutoff: {NU_CUTOFF/1e6:.1f} MHz')
+    # Horizontal lines
+    ax1.axhline(y=0, color='gray', linestyle='--', linewidth=0.8, alpha=0.7)
+    ax1.axhline(y=FARSIDE_SENSITIVITY_DB, color='forestgreen', linestyle='-.', 
+                linewidth=1.8, alpha=0.9, label='FARSIDE 2029 (projected)')
+    ax1.axvline(x=NU_CUTOFF, color='purple', linestyle='--', linewidth=1.2, 
+                alpha=0.8, label=r'$\nu_c = 10.2\,$MHz')
     
-    # FARSIDE 2029 sensitivity curve
-    ax[1].axhline(y=FARSIDE_SENSITIVITY_DB, color='green', linestyle='-.', linewidth=1.5,
-                  label=f'FARSIDE 2029 sensitivity (projected)', alpha=0.8)
+    # Foreground zone (more precise)
+    ax1.axvspan(1e4, 1e8, color='gold', alpha=0.15, 
+                label=r'Galactic synchrotron foreground\n($S_{\nu}^{\rm sync} \gg S_{\nu}^{\rm CMB}$)')
     
-    # FOREGROUND WARNING ZONE (critical context!)
-    foreground_start = 1e8  # 100 MHz - where Galactic synchrotron dominates
-    ax[1].axvspan(1e4, foreground_start, color='yellow', alpha=0.2,
-                  label='Galactic foreground\ncontamination zone\n(Synchrotron >> CMB)')
+    # Annotate 1 MHz point cleanly
+    ax1.scatter([1e6], [deviation_db], color='red', s=140, zorder=10, 
+                edgecolors='black', linewidth=1.5)
+    ax1.annotate(f'{deviation_db:.1f} dB', 
+                 xy=(1e6, deviation_db), xytext=(2.5e6, deviation_db+12),
+                 arrowprops=dict(arrowstyle='-|>', color='red', lw=1.8, connectionstyle="arc3,rad=0.2"),
+                 fontsize=11, fontweight='bold', color='red',
+                 bbox=dict(boxstyle='round,pad=0.3', facecolor='white', edgecolor='red', alpha=0.95))
     
-    # Detailed observational challenge text
-    obs_challenge = (
-        '⚠️ OBSERVATIONAL CHALLENGE:\n'
-        'Galactic synchrotron foreground\n'
-        'is 10⁴–10⁶× brighter than CMB\n'
-        'below 100 MHz.\n\n'
-        'FARSIDE (2029) on lunar farside\n'
-        'required for clean measurement.\n'
-        'Current best limit: ~100 MHz\n'
-        '(EDGES, SARAS experiments)'
+    # Observational challenge box — repositioned to top-right, non-overlapping
+    obs_box = (
+        r'\textbf{Observational Challenge:}\n'
+        r'Galactic synchrotron is $10^4$--$10^6\times$ brighter than CMB\n'
+        r'below 100 MHz.\n\n'
+        r'\textbf{Path forward:}\n'
+        r'FARSIDE (2029) on lunar farside — only viable platform.'
     )
-    ax[1].text(3e5, max(ratio_db)*0.85, obs_challenge,
-               bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8),
-               fontsize=8.5, linespacing=1.3, va='top')
+    ax1.text(0.98, 0.98, obs_box, transform=ax1.transAxes,
+             fontsize=9.5, ha='right', va='top',
+             bbox=dict(boxstyle='round,pad=0.5', facecolor='lemonchiffon', edgecolor='darkgoldenrod', alpha=0.9),
+             linespacing=1.3, zorder=20)
     
-    # Mark 1 MHz point
-    ax[1].scatter([1e6], [deviation_db], color='red', s=120, zorder=10, edgecolors='k')
-    ax[1].annotate(f'{deviation_db:.1f} dB', 
-                   xy=(1e6, deviation_db), xytext=(2e6, deviation_db+8),
-                   arrowprops=dict(arrowstyle='->', color='red', lw=1.5),
-                   fontsize=10, fontweight='bold')
+    # Labels & title
+    ax1.set_xlabel(r'Frequency $\nu$ (Hz)', fontsize=13, fontweight='bold')
+    ax1.set_ylabel(r'Deviation from Planck (dB)', fontsize=12, fontweight='bold')
+    ax1.set_title('V6.0 Deviation with Observational Context', 
+                  fontsize=14, fontweight='bold', pad=12)
+    ax1.grid(True, which="both", alpha=0.25, linestyle=':', linewidth=0.6)
+    ax1.set_ylim(-5, 100)
+    ax1.set_xlim(1e4, 1e12)
     
-    ax[1].set_xlabel('Frequency ν (Hz)', fontsize=11, fontweight='bold')
-    ax[1].set_ylabel('Deviation from Planck (dB)', fontsize=10)
-    ax[1].set_title('V6.0 Deviation with Observational Context', 
-                    fontsize=12, fontweight='bold')
-    ax[1].legend(fontsize=8.5, loc='upper left')
-    ax[1].grid(True, which="both", alpha=0.3)
-    ax[1].set_ylim(-5, max(ratio_db)*1.1)
+    # ===== LEGENDS — EXTERNAL, CLEAN, TWO-COLUMN =====
+    handles0, labels0 = ax0.get_legend_handles_labels()
+    handles1, labels1 = ax1.get_legend_handles_labels()
     
-    plt.tight_layout()
+    # Combine and deduplicate (avoid duplicate "uncertainty" entries)
+    all_handles = handles0[:2] + handles1[:3]  # Take core items only
+    all_labels = labels0[:2] + labels1[:3]
     
-    # Save figure
+    # Create external legend below figure
+    fig.legend(all_handles, all_labels,
+               loc='lower center',
+               ncol=5,
+               fontsize=10,
+               frameon=True,
+               fancybox=True,
+               shadow=False,
+               bbox_to_anchor=(0.5, -0.02))
+    
+    # ===== FINAL TOUCHES =====
+    plt.tight_layout(pad=1.2, h_pad=1.0, w_pad=0.8)
+    # Ensure no clipping
+    fig.subplots_adjust(bottom=0.18, top=0.92, left=0.06, right=0.98)
+    
+    # Save with high quality
     os.makedirs('figures', exist_ok=True)
     output_path = 'figures/cmb_spectrum_comparison_corrected.png'
-    plt.savefig(output_path, dpi=200, bbox_inches='tight')
-    print(f"\n📈 Figure saved to: {output_path}")
+    plt.savefig(output_path, dpi=300, bbox_inches='tight', facecolor='white')
+    print(f"\n📈 High-res figure saved to: {output_path}")
     
     print("\n" + "=" * 70)
     print("SCIENTIFIC CONTEXT FOR SUBMISSION:")
@@ -207,8 +258,8 @@ def main():
     print("  ✓ Uncertainty bands included (NU_CUTOFF = 10.2 ± 1.5 MHz)")
     print("  ✓ Critical foreground contamination warning added")
     print("  ✓ FARSIDE 2029 context highlighted for observational feasibility")
-    print("  ✓ Enhanced numerical stability with Taylor expansion")
-    print("  ✓ Theoretical formula annotation included")
+    print("  ✓ Enhanced numerical stability with safe dB ratio computation")
+    print("  ✓ Professional journal-quality layout (PRD/ApJ standard)")
     print("=" * 70)
     
     print("\n" + "=" * 70)
@@ -217,6 +268,7 @@ def main():
     print("  • Explicit derivation of ALPHA parameter")
     print("  • Quantified observational challenges")
     print("  • Clear falsification criterion: < 36 dB at 1 MHz invalidates V6.0")
+    print("  • DPI 300 output for direct manuscript submission")
     print("=" * 70)
     
     plt.show()
